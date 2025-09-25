@@ -35,8 +35,6 @@ runs:
       shell: bash
       run: |
         set -e
-        
-        # jq 설치 (없을 경우에만)
         if ! command -v jq >/dev/null 2>&1; then
           apt-get update -y
           apt-get install -y jq
@@ -47,24 +45,33 @@ runs:
       run: |
         git config --global user.name "github-actions[bot]"
         git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-        
-        # Setup authentication for git push
-        echo "https://github-actions[bot]:${{ inputs.token }}@github.com" > ~/.git-credentials
-        git config --global credential.helper store
+        git remote set-url --push origin "https://x-access-token:${{ inputs.token }}@github.com/${{ github.repository }}.git"
 
     - name: Discover and sync deploy branches
       id: sync
       shell: bash
       run: |
         set -euo pipefail
-        
+        cd "${GITHUB_WORKSPACE:-.}"
+
+        # 최신 원격 정보 가져오기
+        git fetch origin +refs/heads/*:refs/remotes/origin/* --prune
+
+        # 로컬 main 보장
+        if git show-ref --verify --quiet refs/heads/main; then
+          git checkout main
+          git reset --hard origin/main
+        else
+          git checkout -B main origin/main
+        fi
+
         # Get deploy branches
         mapfile -t BRANCHES < <(
           git ls-remote --heads origin 'refs/heads/deploy/*' \
           | awk '{print $2}' \
           | sed 's#^refs/heads/##'
         )
-        
+
         # Filter excluded branches
         IFS=',' read -r -a EXCLUDES <<< "${{ inputs.exclude-branches }}"
         filtered=()
@@ -75,25 +82,24 @@ runs:
           done
           $skip || filtered+=("$b")
         done
-        
+
         # Output discovered branches
         printf '%s\n' "${filtered[@]}" | jq -R . | jq -c -s . > discovered.json
         echo "branches-discovered=$(cat discovered.json)" >> "$GITHUB_OUTPUT"
-        
+
         if [[ ${#filtered[@]} -eq 0 ]]; then
           echo "No deploy branches found to sync"
           echo "branches-synced=[]" >> "$GITHUB_OUTPUT"
           exit 0
         fi
-        
-        # Sync each branch by force-pushing main to it
+
+        # Sync each branch by force-pushing local main
         synced=()
         for branch in "${filtered[@]}"; do
-          git push origin "origin/main:refs/heads/${branch}" --force
+          git push origin "main:refs/heads/${branch}" --force
           echo "Synced branch ${branch} with main"
           synced+=("$branch")
         done
-        
-        # Output synced branches
+
         printf '%s\n' "${synced[@]}" | jq -R . | jq -c -s . > synced.json
         echo "branches-synced=$(cat synced.json)" >> "$GITHUB_OUTPUT"
