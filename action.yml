@@ -58,9 +58,6 @@ runs:
       run: |
         set -euo pipefail
         
-        # Fetch all branches
-        git fetch origin +refs/heads/*:refs/remotes/origin/* --prune
-        
         # Get deploy branches
         mapfile -t BRANCHES < <(
           git ls-remote --heads origin 'refs/heads/deploy/*' \
