@@ -25,6 +25,12 @@ outputs:
 runs:
   using: 'composite'
   steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ inputs.token }}
+
     - name: Install tools (jq)
       shell: bash
       run: |
@@ -35,12 +41,6 @@ runs:
           apt-get update -y
           apt-get install -y jq
         fi
-
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-        token: ${{ inputs.token }}
 
     - name: Setup git authentication
       shell: bash
