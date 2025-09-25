@@ -1,0 +1,141 @@
+name: 'Sync Deploy Branches with Main'
+description: 'Discovers all deploy/* branches and syncs them with main by force-pushing main to each deploy branch'
+author: 'PionCorp'
+branding:
+  icon: 'git-branch'
+  color: 'blue'
+
+inputs:
+  exclude-branches:
+    description: 'Comma-separated list of deploy branches to exclude from syncing'
+    required: false
+    default: 'deploy/example,deploy/dummy'
+  token:
+    description: 'GitHub token with write permissions for repository access (required for git push operations)'
+    required: true
+
+outputs:
+  branches-synced:
+    description: 'JSON array of branches that were synced'
+    value: ${{ steps.sync.outputs.branches-synced }}
+  branches-discovered:
+    description: 'JSON array of all deploy branches discovered'
+    value: ${{ steps.sync.outputs.branches-discovered }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install tools (jq)
+      shell: bash
+      run: |
+        set -e
+        
+        # jq 설치 (없을 경우에만)
+        if ! command -v jq >/dev/null 2>&1; then
+          apt-get update -y
+          apt-get install -y jq
+        fi
+
+    - name: Setup git authentication
+      shell: bash
+      run: |
+        echo "=== DEBUG: Setting up git authentication ==="
+        echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
+        echo "GITHUB_REPOSITORY: $GITHUB_REPOSITORY"
+        echo "Token length: ${#GITHUB_TOKEN}"
+        
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        
+        # Setup authentication for git push
+        echo "https://github-actions[bot]:${{ inputs.token }}@github.com" > ~/.git-credentials
+        git config --global credential.helper store
+        
+        echo "=== DEBUG: Git configuration ==="
+        git config --global --list | grep -E "(user|credential|safe)"
+        echo "=== DEBUG: Remote URLs ==="
+        git remote -v
+        echo "=== DEBUG: Current branch and status ==="
+        git branch -a
+        git status
+
+    - name: Discover and sync deploy branches
+      id: sync
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        echo "=== DEBUG: Starting branch discovery ==="
+        echo "Current directory: $(pwd)"
+        echo "Repository: $GITHUB_REPOSITORY"
+        
+        # Test git fetch with debug
+        echo "=== DEBUG: Testing git fetch ==="
+        git fetch origin +refs/heads/*:refs/remotes/origin/* --prune || {
+          echo "ERROR: git fetch failed"
+          echo "Trying alternative approach..."
+          git fetch origin --prune || echo "Alternative fetch also failed"
+        }
+        
+        # Test git ls-remote with debug
+        echo "=== DEBUG: Testing git ls-remote ==="
+        git ls-remote --heads origin 'refs/heads/deploy/*' || {
+          echo "ERROR: git ls-remote failed"
+          echo "Trying to list all remote branches..."
+          git ls-remote --heads origin || echo "ls-remote completely failed"
+        }
+        
+        # Get deploy branches
+        echo "=== DEBUG: Getting deploy branches ==="
+        mapfile -t BRANCHES < <(
+          git ls-remote --heads origin 'refs/heads/deploy/*' \
+          | awk '{print $2}' \
+          | sed 's#^refs/heads/##'
+        )
+        
+        echo "=== DEBUG: Found branches ==="
+        printf '%s\n' "${BRANCHES[@]}"
+        
+        # Filter excluded branches
+        IFS=',' read -r -a EXCLUDES <<< "${{ inputs.exclude-branches }}"
+        filtered=()
+        for b in "${BRANCHES[@]}"; do
+          skip=false
+          for ex in "${EXCLUDES[@]}"; do
+            [[ -n "$ex" && "$b" == "$ex" ]] && skip=true && break
+          done
+          $skip || filtered+=("$b")
+        done
+        
+        # Output discovered branches
+        printf '%s\n' "${filtered[@]}" | jq -R . | jq -c -s . > discovered.json
+        echo "branches-discovered=$(cat discovered.json)" >> "$GITHUB_OUTPUT"
+        
+        if [[ ${#filtered[@]} -eq 0 ]]; then
+          echo "No deploy branches found to sync"
+          echo "branches-synced=[]" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        
+        # Sync each branch by force-pushing main to it
+        echo "=== DEBUG: Starting sync process ==="
+        echo "Filtered branches to sync: ${filtered[*]}"
+        synced=()
+        for branch in "${filtered[@]}"; do
+          echo "=== DEBUG: Syncing branch: $branch ==="
+          echo "Push URL: https://github-actions[bot]:${{ inputs.token }}@github.com/${{ github.repository }}.git"
+          echo "Push command: git push ... origin/main:refs/heads/${branch} --force"
+          
+          git push "https://github-actions[bot]:${{ inputs.token }}@github.com/${{ github.repository }}.git" "origin/main:refs/heads/${branch}" --force || {
+            echo "ERROR: Failed to sync branch $branch"
+            echo "Trying alternative push method..."
+            git push origin "origin/main:refs/heads/${branch}" --force || echo "Alternative push also failed"
+          }
+          echo "Synced branch ${branch} with main"
+          synced+=("$branch")
+        done
+        
+        # Output synced branches
+        printf '%s\n' "${synced[@]}" | jq -R . | jq -c -s . > synced.json
+        echo "branches-synced=$(cat synced.json)" >> "$GITHUB_OUTPUT"
