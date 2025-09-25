@@ -27,7 +27,7 @@ A GitHub composite action that discovers all `deploy/*` branches and syncs them 
 - name: Sync Deploy Branches
   uses: pioncorp/sync-deploy-branches@main
   with:
-    exclude-branches: 'deploy/old,deploy/legacy,deploy/experimental'
+    exclude-branches: "deploy/old,deploy/legacy,deploy/experimental"
     token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
@@ -37,7 +37,7 @@ A GitHub composite action that discovers all `deploy/*` branches and syncs them 
 name: Sync Deploy Branches
 on:
   schedule:
-    - cron: "0 0 * * 0"  # Weekly on Sunday
+    - cron: "0 0 * * 0" # Weekly on Sunday
   workflow_dispatch:
 
 permissions:
@@ -52,8 +52,8 @@ jobs:
         uses: pioncorp/sync-deploy-branches@main
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          exclude-branches: 'deploy/example,deploy/dummy'
-      
+          exclude-branches: "deploy/example,deploy/dummy"
+
       - name: Display Results
         run: |
           echo "Discovered branches: ${{ steps.sync.outputs.branches-discovered }}"
@@ -62,17 +62,17 @@ jobs:
 
 ## Inputs
 
-| Input | Description | Required | Default |
-|-------|-------------|----------|---------|
-| `exclude-branches` | Comma-separated list of deploy branches to exclude | No | `deploy/example,deploy/dummy` |
-| `token` | GitHub token with write permissions for repository access | **Yes** | None |
+| Input              | Description                                               | Required | Default                       |
+| ------------------ | --------------------------------------------------------- | -------- | ----------------------------- |
+| `exclude-branches` | Comma-separated list of deploy branches to exclude        | No       | `deploy/example,deploy/dummy` |
+| `token`            | GitHub token with write permissions for repository access | **Yes**  | None                          |
 
 ## Outputs
 
-| Output | Description |
-|--------|-------------|
-| `branches-discovered` | JSON array of all deploy branches found |
-| `branches-synced` | JSON array of branches that were successfully synced |
+| Output                | Description                                          |
+| --------------------- | ---------------------------------------------------- |
+| `branches-discovered` | JSON array of all deploy branches found              |
+| `branches-synced`     | JSON array of branches that were successfully synced |
 
 ## How It Works
 

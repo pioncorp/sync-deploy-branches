@@ -1,29 +1,29 @@
-name: 'Sync Deploy Branches with Main'
-description: 'Discovers all deploy/* branches and syncs them with main by force-pushing main to each deploy branch'
-author: 'PionCorp'
+name: "Sync Deploy Branches with Main"
+description: "Discovers all deploy/* branches and syncs them with main by force-pushing main to each deploy branch"
+author: "PionCorp"
 branding:
-  icon: 'git-branch'
-  color: 'blue'
+  icon: "git-branch"
+  color: "blue"
 
 inputs:
   exclude-branches:
-    description: 'Comma-separated list of deploy branches to exclude from syncing'
+    description: "Comma-separated list of deploy branches to exclude from syncing"
     required: false
-    default: 'deploy/example,deploy/dummy'
+    default: "deploy/example,deploy/dummy"
   token:
-    description: 'GitHub token with write permissions for repository access (required for git push operations)'
+    description: "GitHub token with write permissions for repository access (required for git push operations)"
     required: true
 
 outputs:
   branches-synced:
-    description: 'JSON array of branches that were synced'
+    description: "JSON array of branches that were synced"
     value: ${{ steps.sync.outputs.branches-synced }}
   branches-discovered:
-    description: 'JSON array of all deploy branches discovered'
+    description: "JSON array of all deploy branches discovered"
     value: ${{ steps.sync.outputs.branches-discovered }}
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     - name: Checkout repository
       uses: actions/checkout@v4
