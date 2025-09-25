@@ -45,6 +45,7 @@ runs:
       run: |
         git config --global user.name "github-actions[bot]"
         git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
         git remote set-url --push origin "https://x-access-token:${{ inputs.token }}@github.com/${{ github.repository }}.git"
 
     - name: Discover and sync deploy branches
