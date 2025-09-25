@@ -49,8 +49,8 @@ runs:
         git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
         
         # Setup authentication for git push
-        # echo "https://github-actions[bot]:${{ inputs.token }}@github.com" > ~/.git-credentials
-        # git config --global credential.helper store
+        echo "https://github-actions[bot]:${{ inputs.token }}@github.com" > ~/.git-credentials
+        git config --global credential.helper store
 
     - name: Discover and sync deploy branches
       id: sync
@@ -59,10 +59,7 @@ runs:
         set -euo pipefail
         
         # Fetch all branches
-        git fetch origin +refs/heads/*:refs/remotes/origin/* --prune || {
-          echo "ERROR: git fetch failed"
-          git fetch origin --prune || echo "Alternative fetch also failed"
-        }
+        git fetch origin +refs/heads/*:refs/remotes/origin/* --prune
         
         # Get deploy branches
         mapfile -t BRANCHES < <(
@@ -95,10 +92,7 @@ runs:
         # Sync each branch by force-pushing main to it
         synced=()
         for branch in "${filtered[@]}"; do
-          git push "https://github-actions[bot]:${{ inputs.token }}@github.com/${{ github.repository }}.git" "origin/main:refs/heads/${branch}" --force || {
-            echo "ERROR: Failed to sync branch $branch"
-            git push origin "origin/main:refs/heads/${branch}" --force || echo "Alternative push also failed"
-          }
+          git push origin "origin/main:refs/heads/${branch}" --force
           echo "Synced branch ${branch} with main"
           synced+=("$branch")
         done
