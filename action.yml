@@ -45,25 +45,12 @@ runs:
     - name: Setup git authentication
       shell: bash
       run: |
-        echo "=== DEBUG: Setting up git authentication ==="
-        echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
-        echo "GITHUB_REPOSITORY: $GITHUB_REPOSITORY"
-        echo "Token length: ${#GITHUB_TOKEN}"
-        
         git config --global user.name "github-actions[bot]"
         git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
         
         # Setup authentication for git push
-        echo "https://github-actions[bot]:${{ inputs.token }}@github.com" > ~/.git-credentials
-        git config --global credential.helper store
-        
-        echo "=== DEBUG: Git configuration ==="
-        git config --global --list | grep -E "(user|credential|safe)"
-        echo "=== DEBUG: Remote URLs ==="
-        git remote -v
-        echo "=== DEBUG: Current branch and status ==="
-        git branch -a
-        git status
+        # echo "https://github-actions[bot]:${{ inputs.token }}@github.com" > ~/.git-credentials
+        # git config --global credential.helper store
 
     - name: Discover and sync deploy branches
       id: sync
@@ -71,36 +58,18 @@ runs:
       run: |
         set -euo pipefail
         
-        echo "=== DEBUG: Starting branch discovery ==="
-        echo "Current directory: $(pwd)"
-        echo "Repository: $GITHUB_REPOSITORY"
-        
-        # Test git fetch with debug
-        echo "=== DEBUG: Testing git fetch ==="
+        # Fetch all branches
         git fetch origin +refs/heads/*:refs/remotes/origin/* --prune || {
           echo "ERROR: git fetch failed"
-          echo "Trying alternative approach..."
           git fetch origin --prune || echo "Alternative fetch also failed"
         }
         
-        # Test git ls-remote with debug
-        echo "=== DEBUG: Testing git ls-remote ==="
-        git ls-remote --heads origin 'refs/heads/deploy/*' || {
-          echo "ERROR: git ls-remote failed"
-          echo "Trying to list all remote branches..."
-          git ls-remote --heads origin || echo "ls-remote completely failed"
-        }
-        
         # Get deploy branches
-        echo "=== DEBUG: Getting deploy branches ==="
         mapfile -t BRANCHES < <(
           git ls-remote --heads origin 'refs/heads/deploy/*' \
           | awk '{print $2}' \
           | sed 's#^refs/heads/##'
         )
-        
-        echo "=== DEBUG: Found branches ==="
-        printf '%s\n' "${BRANCHES[@]}"
         
         # Filter excluded branches
         IFS=',' read -r -a EXCLUDES <<< "${{ inputs.exclude-branches }}"
@@ -124,17 +93,10 @@ runs:
         fi
         
         # Sync each branch by force-pushing main to it
-        echo "=== DEBUG: Starting sync process ==="
-        echo "Filtered branches to sync: ${filtered[*]}"
         synced=()
         for branch in "${filtered[@]}"; do
-          echo "=== DEBUG: Syncing branch: $branch ==="
-          echo "Push URL: https://github-actions[bot]:${{ inputs.token }}@github.com/${{ github.repository }}.git"
-          echo "Push command: git push ... origin/main:refs/heads/${branch} --force"
-          
           git push "https://github-actions[bot]:${{ inputs.token }}@github.com/${{ github.repository }}.git" "origin/main:refs/heads/${branch}" --force || {
             echo "ERROR: Failed to sync branch $branch"
-            echo "Trying alternative push method..."
             git push origin "origin/main:refs/heads/${branch}" --force || echo "Alternative push also failed"
           }
           echo "Synced branch ${branch} with main"
